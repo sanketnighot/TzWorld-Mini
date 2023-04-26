@@ -1,0 +1,36 @@
+on: [push]
+
+concurrency: 
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tezworld_mini-compile:
+    runs-on: ubuntu-latest
+    steps:
+
+      - name: Setup repo
+        uses: actions/checkout@v2
+
+      - name: Setup node
+        uses: actions/setup-node@v2
+        with:
+          node-version: 16
+          check-latest: true
+
+      - name: install modules
+        run: |
+          npm update
+          npm ci
+
+      - name: compile contracts
+        uses: ecadlabs/taqueria-github-action@v0.13.0
+        with:
+            compile_contracts: "tzcard.py, usdt.py"
+            compile_plugin: smartpy
+
+
+      - name: Send Notification on Discord
+        uses: johnnyhuy/actions-discord-git-webhook@main 
+        with:
+          webhook_url: ${{ secrets.DISCORD_WEBHOOK_URL }}
