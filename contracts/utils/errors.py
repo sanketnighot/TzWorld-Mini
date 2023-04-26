@@ -1,5 +1,5 @@
 def make(msg):
-    return f"TzWorld-Mini_{msg}"
+    return f"ERR: {msg}"
 
 
 NotAdmin = make("Sender_Not_Admin")
@@ -43,3 +43,5 @@ InvalidPlayerCard = make("Invalid_Player_Card")
 InvalidOwner = make("Invalid_Owner")
 
 CardLocked = make("Card_Locked")
+
+InvalidCardId = make("Invalid_Card_Id")

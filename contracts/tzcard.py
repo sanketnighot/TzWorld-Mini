@@ -6,7 +6,7 @@ Errors = sp.io.import_script_from_url("file:contracts/utils/errors.py")
 
 
 class TzCard(FA2.Admin, FA2.MintNft, FA2.Fa2Nft, FA2.OnchainviewBalanceOf):
-    def __init__(self, admin, token_address, **kwargs):
+    def __init__(self, admin, token_address, token_operators, **kwargs):
         FA2.Fa2Nft.__init__(self, **kwargs)
         FA2.Admin.__init__(self, admin)
         self.update_initial_storage(
@@ -17,6 +17,7 @@ class TzCard(FA2.Admin, FA2.MintNft, FA2.Fa2Nft, FA2.OnchainviewBalanceOf):
             ),
             token_address=token_address,
             transaction_fees=sp.nat(2),
+            token_operators=token_operators,
         )
 
     def transfer_tokens(self, from_, to_, amount_):
@@ -58,6 +59,24 @@ class TzCard(FA2.Admin, FA2.MintNft, FA2.Fa2Nft, FA2.OnchainviewBalanceOf):
             sp.mutez(0),
             transfer_params,
         )
+
+    def is_operator(self):
+        """
+        This function verifies if the sender is a stakeholder in the smart contract.
+        """
+        sp.verify(self.data.token_operators.contains(sp.sender), Errors.NotStakeholder)
+
+    @sp.entry_point
+    def add_operator(self, new_operator):
+        sp.set_type(new_operator, sp.TAddress)
+        self.is_operator()
+        self.data.token_operators.add(new_operator)
+
+    @sp.entry_point
+    def remove_operator(self, remove_operator):
+        sp.set_type(remove_operator, sp.TAddress)
+        self.is_operator()
+        self.data.token_operators.remove(remove_operator)
 
     @sp.entry_point
     def mint(self, params):
@@ -122,26 +141,33 @@ class TzCard(FA2.Admin, FA2.MintNft, FA2.Fa2Nft, FA2.OnchainviewBalanceOf):
         sp.verify(self.data.ledger[card_id] == from_, "FA2_INSUFFICIENT_BALANCE")
         self.data.ledger[card_id] = to_
 
-    @sp.onchain_view()
-    def get_card_owner(self, card_id):
-        sp.set_type(card_id, sp.TNat)
-        sp.result(self.data.ledger[card_id])
+    @sp.entry_point
+    def lock_card(self, card_id):
+        self.is_operator()
+        self.data.cards_ledger[card_id].card_locked = sp.bool(True)
+
+    @sp.entry_point
+    def unlock_card(self, card_id):
+        self.is_operator()
+        self.data.cards_ledger[card_id].card_locked = sp.bool(False)
 
     @sp.onchain_view()
-    def get_locked_tokens(self, card_id):
+    def get_card_details(self, card_id):
         sp.set_type(card_id, sp.TNat)
-        sp.result(self.data.cards_ledger[card_id].locked_tokens)
-    
-    @sp.onchain_view()
-    def is_card_locked(self, card_id):
-        sp.set_type(card_id, sp.TNat)
-        sp.result(self.data.cards_ledger[card_id].card_locked)
+        sp.result(
+            sp.record(
+                card_id=card_id,
+                card_owner=self.data.ledger[card_id],
+                card_details=self.data.cards_ledger[card_id],
+            )
+        )
 
 
 sp.add_compilation_target(
     "Compiled_TzCard_Contract",
     TzCard(
         admin=Address.admin,
+        token_operators=sp.set([Address.admin]),
         metadata=sp.utils.metadata_of_url(
             "ipfs://QmW8jPMdBmFvsSEoLWPPhaozN6jGQFxxkwuMLtVFqEy6Fb"
         ),
